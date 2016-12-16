@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
+using SmartCard.Utils;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -32,12 +31,33 @@ namespace SmartCard
         public SmartCardManager(SmartCardConst.SCOPE scope)
         {
             _smartCardScope = scope;
+            _context = IntPtr.Zero;
         }
 
 
         public SmartCardConst.CardErrorCode LastError
         {
             get { return (SmartCardConst.CardErrorCode)((uint)_lastError); }
+        }
+
+        public bool EstablishContext()
+        {
+            if (HasContext)
+            {
+                return true;
+            }
+
+            _lastError = (uint)PCSC.SCardEstablishContext((uint)_smartCardScope, IntPtr.Zero, IntPtr.Zero, ref _context);
+            RaiseExceptionIfFailed();
+            return _lastError == (uint)SmartCardConst.CardErrorCode.None;
+        }
+
+        public void ReleaseContext()
+        {
+            if (HasContext)
+            {
+                PCSC.SCardReleaseContext(_context);
+            }
         }
 
         public ArrayList ListReaders()
@@ -49,7 +69,10 @@ namespace SmartCard
 
                 IntPtr szListReaders = IntPtr.Zero;
                 szListReaders = Marshal.AllocHGlobal((int)size);
-                if ((PCSC.SCardListReaders(_context, null, szListReaders, out size) == PCSC.SCARD_S_SUCCESS))
+                _lastError = (uint)PCSC.SCardListReaders(_context, null, szListReaders, out size);
+                RaiseExceptionIfFailed();
+
+                if (_lastError == (uint)SmartCardConst.CardErrorCode.None)
                 {
                     char[] caReadersData = new char[size];
                     int nbReaders = 0;
@@ -157,27 +180,27 @@ namespace SmartCard
 
         #region Private
 
-        private bool EstablishContext()
-        {
-            if (HasContext)
-            {
-                return true;
-            }
-
-            _lastError = (uint)PCSC.SCardEstablishContext((uint)_smartCardScope, IntPtr.Zero, IntPtr.Zero, ref _context);
-            return _lastError == PCSC.SCARD_S_SUCCESS;
-        }
-
         private uint GetReaderListBufferSize()
         {
-            if (HasContext)
+            if (!HasContext)
             {
                 return 0;
             }
+
             uint bufferSize = 0;
 
             _lastError = (uint)PCSC.SCardListReaders(_context, null, IntPtr.Zero, out bufferSize);
+            RaiseExceptionIfFailed();
             return bufferSize;
+        }
+
+        private void RaiseExceptionIfFailed()
+        {
+            if (_lastError != (uint)SmartCardConst.CardErrorCode.None)
+            {
+                var error = ((SmartCardConst.CardErrorCode)_lastError).GetDisplayAttributeFrom();
+                throw new Exception(string.Format("Error occured: {0} - Code: {1}", error, _lastError));
+            }
         }
         #endregion
 

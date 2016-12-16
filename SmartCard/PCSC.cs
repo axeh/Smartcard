@@ -11,8 +11,6 @@ namespace SmartCard
     {
         private const string WINSCARD_DLL = "winscard.dll";
 
-        public const int SCARD_S_SUCCESS = 0;
-
         /// <summary>
         /// CARD_READER_STATE enumeration, used by the PC/SC function SCardGetStatusChanged
         /// </summary>
