@@ -1,0 +1,9 @@
+C:\Github\Smartcard\SmartCardTest\bin\Debug\SmartCardTest.dll
+C:\Github\Smartcard\SmartCardTest\bin\Debug\SmartCardTest.pdb
+C:\Github\Smartcard\SmartCardTest\bin\Debug\Microsoft.VisualStudio.QualityTools.UnitTestFramework.dll
+C:\Github\Smartcard\SmartCardTest\bin\Debug\SmartCard.dll
+C:\Github\Smartcard\SmartCardTest\bin\Debug\SmartCard.pdb
+C:\Github\Smartcard\SmartCardTest\bin\Debug\Microsoft.VisualStudio.QualityTools.UnitTestFramework.xml
+C:\Github\Smartcard\SmartCardTest\obj\Debug\SmartCardTest.csprojResolveAssemblyReference.cache
+C:\Github\Smartcard\SmartCardTest\obj\Debug\SmartCardTest.dll
+C:\Github\Smartcard\SmartCardTest\obj\Debug\SmartCardTest.pdb

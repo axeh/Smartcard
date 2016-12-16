@@ -1,0 +1,4 @@
+C:\Github\Smartcard\SmartCard\bin\Debug\SmartCard.dll
+C:\Github\Smartcard\SmartCard\bin\Debug\SmartCard.pdb
+C:\Github\Smartcard\SmartCard\obj\Debug\SmartCard.dll
+C:\Github\Smartcard\SmartCard\obj\Debug\SmartCard.pdb
