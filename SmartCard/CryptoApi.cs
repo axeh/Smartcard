@@ -33,7 +33,12 @@ namespace SmartCard
             /// This certificate store contains all of the user certificates that are stored on the smart card. 
             /// The certificates in this store are encoded by using PKCS_7_ASN_ENCODING or X509_ASN_ENCODING encoding and should contain the CERT_KEY_PROV_INFO_PROP_ID property.
             /// </summary>
-            PP_USER_CERTSTORE = 42
+            PP_USER_CERTSTORE = 42,
+            /// <summary>
+            /// The name of the CSP in the form of a null-terminated CHAR string. 
+            /// This string is identical to the one passed in the pszProvider parameter of the CryptAcquireContext function to specify that the current CSP be used.
+            /// </summary>
+            PP_NAME = 4
         }
 
         [DllImport(ADVAPI32_DLL, CharSet = CharSet.Auto, SetLastError = true)]

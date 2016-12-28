@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Generic;
 using SmartCard.Utils;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
+using SmartCard.Exceptions;
 
 namespace SmartCard
 {
@@ -20,8 +22,10 @@ namespace SmartCard
         }
 
 
-
         private SmartCardConst.SCOPE _smartCardScope;
+        private List<string> _readers;
+        private string _cspProviderName;
+        private string _readerName;
         private uint _lastError;
 
         public SmartCardManager() : this(SmartCardConst.SCOPE.User)
@@ -32,12 +36,29 @@ namespace SmartCard
         {
             _smartCardScope = scope;
             _context = IntPtr.Zero;
+            _readers = new List<string>();
         }
 
+        public SmartCardManager(string cspProviderName) : this(SmartCardConst.SCOPE.User)
+        {
+            _cspProviderName = cspProviderName;
+        }
+
+        public SmartCardManager(SmartCardConst.SCOPE scope, string cspProviderName)
+        {
+            _smartCardScope = scope;
+            _context = IntPtr.Zero;
+            _cspProviderName = cspProviderName;
+        }
 
         public SmartCardConst.CardErrorCode LastError
         {
             get { return (SmartCardConst.CardErrorCode)((uint)_lastError); }
+        }
+
+        public uint LastErrorRaw
+        {
+            get { return _lastError; }
         }
 
         public bool EstablishContext()
@@ -52,17 +73,14 @@ namespace SmartCard
             return _lastError == (uint)SmartCardConst.CardErrorCode.None;
         }
 
-        public void ReleaseContext()
+        public ICollection Readers
         {
-            if (HasContext)
-            {
-                PCSC.SCardReleaseContext(_context);
-            }
+            get { return _readers; }
         }
 
-        public ArrayList ListReaders()
+        public ICollection ListReaders()
         {
-            ArrayList result = new ArrayList();
+            _readers.Clear();
             if (EstablishContext())
             {
                 uint size = GetReaderListBufferSize();
@@ -83,13 +101,109 @@ namespace SmartCard
                         if (caReadersData[nI] == 0)
                             nbReaders++;
                     }
-                    string[] readerName = new string(caReadersData).Split(new char[] { '\0' }, StringSplitOptions.RemoveEmptyEntries);
+                    string[] readerName = new string(caReadersData).Split(new char[] { '\0' },
+                        StringSplitOptions.RemoveEmptyEntries);
                     //  string[] readerName = readerList.Split(new char[] { '\0' }, StringSplitOptions.RemoveEmptyEntries);
-                    result.AddRange(readerName);
+                    _readers.AddRange(readerName);
                 }
                 Marshal.FreeHGlobal(szListReaders);
             }
-            return result;
+
+            if (!string.IsNullOrEmpty(_cspProviderName))
+            {
+                foreach (string reader in _readers)
+                {
+                    var containerName = string.Format("\\\\.\\{0}\\", reader);
+                    IntPtr hProvParent = (IntPtr)0;
+                    uint pdwProvDataLen = 0;
+                    byte[] pbProvData = null;
+                    byte[] ProvData = null;
+                    uint PROV_RSA_FULL = 1;
+                    var GetProvParamRet = CryptoApi.CryptAcquireContext(ref hProvParent, containerName,
+                        _cspProviderName, PROV_RSA_FULL, 0);
+
+                    GetProvParamRet = CryptoApi.CryptGetProvParam(hProvParent,
+                        (uint)CryptoApi.CryptGetParam.PP_NAME, pbProvData, ref pdwProvDataLen, 0);
+                    if (pdwProvDataLen > 0)
+                    {
+                        ProvData = new byte[pdwProvDataLen];
+                        var GetKeyParamRet = CryptoApi.CryptGetProvParam(hProvParent,
+                            (uint)CryptoApi.CryptGetParam.PP_NAME, ProvData,
+                            ref pdwProvDataLen, 0);
+
+                        _readerName = reader;
+
+                        CryptoApi.CryptReleaseContext(hProvParent, 0);
+                        break;
+                    }
+                }
+
+            }
+
+            if (!string.IsNullOrEmpty(_cspProviderName) && string.IsNullOrWhiteSpace(_readerName))
+            {
+                throw new SmartCardException(string.Format("CSP not found - {0}", _cspProviderName));
+            }
+
+            return _readers;
+        }
+
+        public bool CheckSmartCardCertificate(string subjectName)
+        {
+            IsPreferedCspInitialized();
+            return CheckSmartCardCertificate(_readerName, _cspProviderName, subjectName);
+        }
+
+        public bool CheckSmartCardCertificate(string readerName, string cspProviderName, string subjectName)
+        {
+            var smartCardStore = GetCertificatesFromSmartCard(readerName, cspProviderName);
+            if (smartCardStore.Certificates.Count > 0)
+            {
+                foreach (var cert in smartCardStore.Certificates)
+                {
+                    if (cert.SubjectName.Name != null && cert.SubjectName.Name.Contains(subjectName))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        public bool ImportCertificateFromSmartCard()
+        {
+            IsPreferedCspInitialized();
+            return ImportCertificateFromSmartCard(_readerName, _cspProviderName);
+        }
+
+        public bool ImportCertificateFromSmartCard(string readerName, string cspProviderName)
+        {
+            var smartCardStore = GetCertificatesFromSmartCard(readerName, cspProviderName);
+            if (smartCardStore.Certificates.Count > 0)
+            {
+                X509Store store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
+                store.Open(OpenFlags.ReadWrite);
+                foreach (var cert in smartCardStore.Certificates)
+                {
+                    foreach (var oldCert in store.Certificates)
+                    {
+                        if (oldCert.Subject == cert.Subject)
+                        {
+                            store.Remove(oldCert);
+                            break;
+                        }
+                    }
+                    store.Add(cert);
+                }
+                store.Close();
+            }
+            return true;
+        }
+
+        public X509Store GetCertificatesFromSmartCard()
+        {
+            IsPreferedCspInitialized();
+            return GetCertificatesFromSmartCard(_readerName, _cspProviderName);
         }
 
         public X509Store GetCertificatesFromSmartCard(string readerName, string cspProviderName)
@@ -138,44 +252,12 @@ namespace SmartCard
 
         }
 
-        public bool CheckSmartCard(string readerName, string cspProviderName, string mboDjelatnik)
+        public void ReleaseContext()
         {
-            var smartCardStore = GetCertificatesFromSmartCard(readerName, cspProviderName);
-            if (smartCardStore.Certificates.Count > 0)
+            if (HasContext)
             {
-                foreach (var cert in smartCardStore.Certificates)
-                {
-                    if (cert.SubjectName.Name != null && cert.SubjectName.Name.Contains(mboDjelatnik))
-                    {
-                        return true;
-                    }
-                }
+                PCSC.SCardReleaseContext(_context);
             }
-            return false;
-        }
-
-        public bool ImportCertificateFromSmartCard(string readerName, string cspProviderName)
-        {
-            var smartCardStore = GetCertificatesFromSmartCard(readerName, cspProviderName);
-            if (smartCardStore.Certificates.Count > 0)
-            {
-                X509Store store = new X509Store(StoreName.My, StoreLocation.CurrentUser);
-                store.Open(OpenFlags.ReadWrite);
-                foreach (var cert in smartCardStore.Certificates)
-                {
-                    foreach (var oldCert in store.Certificates)
-                    {
-                        if (oldCert.Subject == cert.Subject)
-                        {
-                            store.Remove(oldCert);
-                            break;
-                        }
-                    }
-                    store.Add(cert);
-                }
-                store.Close();
-            }
-            return true;
         }
 
         #region Private
@@ -199,9 +281,23 @@ namespace SmartCard
             if (_lastError != (uint)SmartCardConst.CardErrorCode.None)
             {
                 var error = ((SmartCardConst.CardErrorCode)_lastError).GetDisplayAttributeFrom();
-                throw new Exception(string.Format("Error occured: {0} - Code: {1}", error, _lastError));
+                throw new SmartCardException(string.Format("Error occured: {0} - Code: {1}", error, _lastError), _lastError);
             }
         }
+
+        private void IsPreferedCspInitialized()
+        {
+            if (String.IsNullOrWhiteSpace(_cspProviderName))
+            {
+                throw new SmartCardException("Provide preffered cspProviderName using constructor");
+            }
+
+            if (String.IsNullOrWhiteSpace(_readerName))
+            {
+                throw new SmartCardException(string.Format("CSP not found - {0}", _cspProviderName));
+            }
+        }
+
         #endregion
 
     }

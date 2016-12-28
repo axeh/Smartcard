@@ -27,9 +27,19 @@ namespace SmartCardTest
                     sb.Append(reader + System.Environment.NewLine);
                 }
 
-                Assert.Inconclusive(string.Format("There is {0} detected smart card readers{1}{2}"), readers.Count, System.Environment.NewLine, sb.ToString()
-                    );
+                Assert.IsTrue(1==1, (string.Format("There is {0} detected smart card readers{1}{2}", readers.Count, System.Environment.NewLine, sb.ToString())));
             }
+
+        }
+
+        [TestMethod]
+        public void CheckIfSmartCardIsConnectedPrefferedCsp()
+        {
+            //enter for preffered CSP. SmartCardManager will try to locate preffered one
+            SmartCardManager cs = new SmartCardManager("AKDSHCard CSP");
+            var readers = cs.ListReaders();
+            Assert.IsTrue(readers != null);
+            Assert.IsTrue(readers.Count > 0);
 
         }
     }

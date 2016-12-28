@@ -41,6 +41,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CryptoApi.cs" />
+    <Compile Include="Exceptions\SmartCardException.cs" />
     <Compile Include="PCSC.cs" />
     <Compile Include="SmartCardManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
